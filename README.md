@@ -23,7 +23,7 @@ No sidecar required. No managed proxy between your users and your app. No contro
 ## Quick reference
 
 - **Where to get help:** see the Support section at the bottom
-- **Built on:** nginx 1.31.0 (mainline) — full nginx core feature set available
+- **Built on:** nginx 1.31.1 (mainline) — full nginx core feature set available
 - **Supported architectures:** `linux/amd64`, `linux/arm64` — single multi-arch manifest list, Docker pulls the right one for your host
 - **Tag strategy:** `latest` always points to the newest stable release; semver tags (`MAJOR.MINOR.PATCH`, `MAJOR.MINOR`, `MAJOR`) pin to specific versions. Current tag list: <https://github.com/203x-io/npx-waf/pkgs/container/npx-waf>
 - **Source license:** BUSL-1.1 → Apache-2.0 on the Change Date (January 1, 2030)
@@ -44,7 +44,7 @@ If you need a vendor-operated global edge, pair this with your CDN/WAF strategy.
 ```
    Internet                  npx-waf inspection                 Result
    ────────────────────      ──────────────────────────────     ────────
-   GET /?q=hello         →   [scan 4,653 patterns]          →   200  →  backend
+   GET /?q=hello         →   [scan 4,050 patterns]          →   200  →  backend
    GET /?q=[XSS]         →   [hit: XSS, score=8, ~3 µs]     →   403  ✕  backend
    GET /?id=[SQLi]       →   [hit: SQLi, score=8, ~3 µs]    →   403  ✕  backend
    POST [NoSQLi body]    →   [hit: NoSQLi, score=8, ~5 µs]  →   403  ✕  backend
