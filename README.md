@@ -22,7 +22,7 @@ No sidecar required. No managed proxy between your users and your app. No contro
 ## Quick reference
 
 - **Where to get help:** see the Support section at the bottom
-- **Built on:** nginx 1.31.6 (mainline) — full nginx core feature set available
+- **Built on:** nginx 1.31.8 (mainline) — full nginx core feature set available
 - **Supported architectures:** `linux/amd64`, `linux/arm64` — single multi-arch manifest list, Docker pulls the right one for your host
 - **Tag strategy:** `latest` always points to the newest stable release; semver tags (`MAJOR.MINOR.PATCH`, `MAJOR.MINOR`, `MAJOR`) pin to specific versions. Current tag list: <https://github.com/203x-io/npx-waf/pkgs/container/npx-waf>
 - **Source license:** BUSL-1.1 → Apache-2.0 on the Change Date (January 1, 2030)
@@ -152,8 +152,8 @@ services:
     cap_add:  [NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
-    # 0.2.4's own check runs nginx -t without -e: with -e stderr it needs
-    # no error_log line in nginx.conf on the read-only root.
+    # The image's own healthcheck already runs nginx -t with -e stderr, so a
+    # read-only root needs no error_log in nginx.conf; this override restates it.
     healthcheck:
       test: ["CMD", "/usr/sbin/nginx", "-t", "-q", "-e", "stderr", "-c", "/etc/nginx/nginx.conf"]
       interval: 10s
@@ -173,7 +173,7 @@ services:
     stop_grace_period: 30s
 ```
 
-Temp files: with a read-only root, `/var/lib/nginx/tmp` is the only place nginx can spill to, and here it is a 64 MB RAM tmpfs. Keep `client_max_body_size` below `client_body_buffer_size` (256k and 288k): a larger body then gets 413 instead of going to a temp file, where the WAF cannot inspect it and enforce mode blocks it. Binary types such as images are not inspected, so raise the limit only where they are uploaded (images after 0.2.4 ship 256k/288k; the 0.2.4 bundled config has 1m/256k). Add `proxy_max_temp_file_size 0;` next to `proxy_pass` so a large response streams instead of filling the tmpfs; nginx then keeps the upstream connection until the client has read the response, so a backend with one worker per connection (gunicorn sync, Apache prefork) needs headroom for slow clients — or mount a disk-backed volume writable by UID 65532 at `/var/lib/nginx/tmp` instead of the tmpfs and leave the line out.
+Temp files: with a read-only root, `/var/lib/nginx/tmp` is the only place nginx can spill to, and here it is a 64 MB RAM tmpfs. Keep `client_max_body_size` below `client_body_buffer_size` (256k and 288k): a larger body then gets 413 instead of going to a temp file, where the WAF cannot inspect it and enforce mode blocks it. Binary types such as images are not inspected, so raise the limit only where they are uploaded (0.3.0 ships 256k/288k; the 0.2.4 bundled config had 1m/256k). Add `proxy_max_temp_file_size 0;` next to `proxy_pass` so a large response streams instead of filling the tmpfs; nginx then keeps the upstream connection until the client has read the response, so a backend with one worker per connection (gunicorn sync, Apache prefork) needs headroom for slow clients — or mount a disk-backed volume writable by UID 65532 at `/var/lib/nginx/tmp` instead of the tmpfs and leave the line out.
 
 Defense-in-depth posture: read‑only root filesystem, capabilities dropped to one (`NET_BIND_SERVICE`), `no-new-privileges`, and a graceful SIGQUIT shutdown. The container has no shell to spawn and no writable root to drop a payload onto — properties that limit common post-exploitation options if an RCE-class bug ever surfaces inside the WAF.
 
@@ -233,8 +233,7 @@ Note on measurements: The numbers above come from the published production image
 
 ```nginx
 worker_processes  auto;
-# The 0.2.4 image HEALTHCHECK runs `nginx -t` without -e: with no
-# error_log it needs /var/lib/nginx/logs, which a read-only root refuses.
+# Log to stderr so a read-only root needs no writable log directory.
 error_log  /dev/stderr warn;
 events { worker_connections 16384; }
 
